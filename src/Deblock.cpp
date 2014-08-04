@@ -27,7 +27,6 @@
 #define DEBLOCK_QUANT_MAX 60
 
 #define CLAMP(x, min, max) (x < min ? min : (x > max ? max : x))
-#define ABS(x) (x < 0 ? -x : x)
 
 const int alphas[DEBLOCK_QUANT_MAX + 1] = {
     0, 0, 0, 0, 0, 0,
@@ -121,9 +120,9 @@ static const VSFrameRef *VS_CC deblockGetFrame(int n, int activationReason, void
                                 uint8_t * sp2 = s - stride * 3;
 
                                 for (i = 0; i < 4; i++) {
-                                    if ((ABS(sp0[i] - sq0[i]) < alpha) && (ABS(sp1[i] - sp0[i]) < beta) && (ABS(sq0[i] - sq1[i]) < beta)) {
-                                        ap = ABS(sp2[i] - sp0[i]);
-                                        aq = ABS(sq2[i] - sq0[i]);
+                                    if ((abs(sp0[i] - sq0[i]) < alpha) && (abs(sp1[i] - sp0[i]) < beta) && (abs(sq0[i] - sq1[i]) < beta)) {
+                                        ap = abs(sp2[i] - sp0[i]);
+                                        aq = abs(sq2[i] - sq0[i]);
                                         c = c0;
                                         if (aq < beta)
                                             c++;
@@ -146,9 +145,9 @@ static const VSFrameRef *VS_CC deblockGetFrame(int n, int activationReason, void
                                 uint8_t * s = dstp + x;
 
                                 for (i = 0; i < 4; i++) {
-                                    if ((ABS(s[0] - s[-1]) < alpha) && (ABS(s[1] - s[0]) < beta) && (ABS(s[-1] - s[-2]) < beta)) {
-                                        ap = ABS(s[2] - s[0]);
-                                        aq = ABS(s[-3] - s[-1]);
+                                    if ((abs(s[0] - s[-1]) < alpha) && (abs(s[1] - s[0]) < beta) && (abs(s[-1] - s[-2]) < beta)) {
+                                        ap = abs(s[2] - s[0]);
+                                        aq = abs(s[-3] - s[-1]);
                                         c = c0;
                                         if (aq < beta)
                                             c++;
@@ -171,10 +170,12 @@ static const VSFrameRef *VS_CC deblockGetFrame(int n, int activationReason, void
                         dstp += stride * 4;
                     }
                 } else if (d->vi->format->bytesPerSample == 2) {
+                    const int shift = d->vi->format->bitsPerSample - 8;
+                    const int peak = (1 << d->vi->format->bitsPerSample) - 1;
                     const int stride = vsapi->getStride(dst, plane) / 2;
-                    const int alpha = alphas[indexa] * 257;
-                    const int beta = betas[indexb] * 257;
-                    const int c0 = cs[indexa] * 257;
+                    const int alpha = alphas[indexa] << shift;
+                    const int beta = betas[indexb] << shift;
+                    const int c0 = cs[indexa] << shift;
 
                     for (y = 0; y < h; y += 4) {
                         for (x = 0; x < w; x += 4) {
@@ -188,19 +189,19 @@ static const VSFrameRef *VS_CC deblockGetFrame(int n, int activationReason, void
                                 uint16_t * sp2 = s - stride * 3;
 
                                 for (i = 0; i < 4; i++) {
-                                    if ((ABS(sp0[i] - sq0[i]) < alpha) && (ABS(sp1[i] - sp0[i]) < beta) && (ABS(sq0[i] - sq1[i]) < beta)) {
-                                        ap = ABS(sp2[i] - sp0[i]);
-                                        aq = ABS(sq2[i] - sq0[i]);
+                                    if ((abs(sp0[i] - sq0[i]) < alpha) && (abs(sp1[i] - sp0[i]) < beta) && (abs(sq0[i] - sq1[i]) < beta)) {
+                                        ap = abs(sp2[i] - sp0[i]);
+                                        aq = abs(sq2[i] - sq0[i]);
                                         c = c0;
                                         if (aq < beta)
-                                            c += 257;
+                                            c += (1 << shift);
                                         if (ap < beta)
-                                            c += 257;
+                                            c += (1 << shift);
                                         delta = CLAMP((((sq0[i] - sp0[i]) << 2) + (sp1[i] - sq1[i]) + 4) >> 3, -c, c);
                                         deltap1 = CLAMP((sp2[i] + ((sp0[i] + sq0[i] + 1) >> 1) - (sp1[i] << 1)) >> 1, -c0, c0);
                                         deltaq1 = CLAMP((sq2[i] + ((sp0[i] + sq0[i] + 1) >> 1) - (sq1[i] << 1)) >> 1, -c0, c0);
-                                        sp0[i] = CLAMP(sp0[i] + delta, 0, 65535);
-                                        sq0[i] = CLAMP(sq0[i] - delta, 0, 65535);
+                                        sp0[i] = CLAMP(sp0[i] + delta, 0, peak);
+                                        sq0[i] = CLAMP(sq0[i] - delta, 0, peak);
                                         if (ap < beta)
                                             sp1[i] = sp1[i] + deltap1;
                                         if (aq < beta)
@@ -213,19 +214,19 @@ static const VSFrameRef *VS_CC deblockGetFrame(int n, int activationReason, void
                                 uint16_t * s = (uint16_t *)dstp + x;
 
                                 for (i = 0; i < 4; i++) {
-                                    if ((ABS(s[0] - s[-1]) < alpha) && (ABS(s[1] - s[0]) < beta) && (ABS(s[-1] - s[-2]) < beta)) {
-                                        ap = ABS(s[2] - s[0]);
-                                        aq = ABS(s[-3] - s[-1]);
+                                    if ((abs(s[0] - s[-1]) < alpha) && (abs(s[1] - s[0]) < beta) && (abs(s[-1] - s[-2]) < beta)) {
+                                        ap = abs(s[2] - s[0]);
+                                        aq = abs(s[-3] - s[-1]);
                                         c = c0;
                                         if (aq < beta)
-                                            c += 257;
+                                            c += (1 << shift);
                                         if (ap < beta)
-                                            c += 257;
+                                            c += (1 << shift);
                                         delta = CLAMP((((s[0] - s[-1]) << 2) + (s[-2] - s[1]) + 4) >> 3, -c, c);
                                         deltaq1 = CLAMP((s[2] + ((s[0] + s[-1] + 1) >> 1) - (s[1] << 1)) >> 1, -c0, c0);
                                         deltap1 = CLAMP((s[-3] + ((s[0] + s[-1] + 1) >> 1) - (s[-2] << 1)) >> 1, -c0, c0);
-                                        s[0] = CLAMP(s[0] - delta, 0, 65535);
-                                        s[-1] = CLAMP(s[-1] + delta, 0, 65535);
+                                        s[0] = CLAMP(s[0] - delta, 0, peak);
+                                        s[-1] = CLAMP(s[-1] + delta, 0, peak);
                                         if (ap < beta)
                                             s[1] = s[1] + deltaq1;
                                         if (aq < beta)
@@ -280,7 +281,7 @@ static void VS_CC deblockCreate(const VSMap *in, VSMap *out, void *userData, VSC
     d.node = vsapi->propGetNode(in, "clip", 0, nullptr);
     d.vi = vsapi->getVideoInfo(d.node);
 
-    if (!isConstantFormat(d.vi) || d.vi->format->colorFamily == cmCompat || d.vi->format->sampleType != stInteger || d.vi->format->bytesPerSample > 2) {
+    if (!isConstantFormat(d.vi) || d.vi->format->sampleType != stInteger || d.vi->format->bytesPerSample > 2) {
         vsapi->setError(out, "Deblock: only constant format 8-16 bits integer input supported");
         vsapi->freeNode(d.node);
         return;
