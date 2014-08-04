@@ -7,7 +7,7 @@ It does a deblocking of the picture, using the deblocking filter of h264. Ported
 Usage
 =====
 
-    deblock.Deblock(clip[, int quant=25, int aoffset=0, int boffset=0, int[] planes])
+    deblock.Deblock(clip clip[, int quant=25, int aoffset=0, int boffset=0, int[] planes])
 
 - quant: the higher the quant, the stronger the deblocking. It can range from 0 to 60.
 
