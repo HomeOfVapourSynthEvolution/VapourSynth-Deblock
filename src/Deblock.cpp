@@ -77,46 +77,16 @@ struct DeblockData {
     int process[3];
 };
 
-static void DeblockHorEdge_8bits(uint8_t *dstp, int stride, const DeblockData *d) {
-    uint8_t * sq0 = dstp;
-    uint8_t * sq1 = dstp + stride;
-    uint8_t * sq2 = dstp + stride * 2;
-    uint8_t * sp0 = dstp - stride;
-    uint8_t * sp1 = dstp - stride * 2;
-    uint8_t * sp2 = dstp - stride * 3;
-
-    for (int i = 0; i < 4; i++) {
-        if ((abs(sp0[i] - sq0[i]) < d->alpha) && (abs(sp1[i] - sp0[i]) < d->beta) && (abs(sq0[i] - sq1[i]) < d->beta)) {
-            int ap = abs(sp2[i] - sp0[i]);
-            int aq = abs(sq2[i] - sq0[i]);
-            int c = d->c0;
-            if (aq < d->beta)
-                c++;
-            if (ap < d->beta)
-                c++;
-            int avg0 = (sp0[i] + sq0[i] + 1) >> 1;
-            int delta = CLAMP((((sq0[i] - sp0[i]) << 2) + (sp1[i] - sq1[i]) + 4) >> 3, -c, c);
-            int deltap1 = CLAMP((sp2[i] + avg0 - (sp1[i] << 1)) >> 1, -d->c0, d->c0);
-            int deltaq1 = CLAMP((sq2[i] + avg0 - (sq1[i] << 1)) >> 1, -d->c0, d->c0);
-            sp0[i] = CLAMP(sp0[i] + delta, 0, 255);
-            sq0[i] = CLAMP(sq0[i] - delta, 0, 255);
-            if (ap < d->beta)
-                sp1[i] = sp1[i] + deltap1;
-            if (aq < d->beta)
-                sq1[i] = sq1[i] + deltaq1;
-        }
-    }
-}
-
-static void DeblockHorEdge_16bits(uint16_t *dstp, int stride, const DeblockData *d) {
+template<typename T>
+static void DeblockHorEdge(T *dstp, int stride, const DeblockData *d) {
     const int shift = d->vi->format->bitsPerSample - 8;
     const int peak = (1 << d->vi->format->bitsPerSample) - 1;
-    uint16_t * sq0 = dstp;
-    uint16_t * sq1 = dstp + stride;
-    uint16_t * sq2 = dstp + stride * 2;
-    uint16_t * sp0 = dstp - stride;
-    uint16_t * sp1 = dstp - stride * 2;
-    uint16_t * sp2 = dstp - stride * 3;
+    T * sq0 = dstp;
+    T * sq1 = dstp + stride;
+    T * sq2 = dstp + stride * 2;
+    T * sp0 = dstp - stride;
+    T * sp1 = dstp - stride * 2;
+    T * sp2 = dstp - stride * 3;
 
     for (int i = 0; i < 4; i++) {
         if ((abs(sp0[i] - sq0[i]) < d->alpha) && (abs(sp1[i] - sp0[i]) < d->beta) && (abs(sq0[i] - sq1[i]) < d->beta)) {
@@ -141,32 +111,8 @@ static void DeblockHorEdge_16bits(uint16_t *dstp, int stride, const DeblockData 
     }
 }
 
-static void DeblockVerEdge_8bits(uint8_t *dstp, int stride, const DeblockData *d) {
-    for (int i = 0; i < 4; i++) {
-        if ((abs(dstp[0] - dstp[-1]) < d->alpha) && (abs(dstp[1] - dstp[0]) < d->beta) && (abs(dstp[-1] - dstp[-2]) < d->beta)) {
-            int ap = abs(dstp[2] - dstp[0]);
-            int aq = abs(dstp[-3] - dstp[-1]);
-            int c = d->c0;
-            if (aq < d->beta)
-                c++;
-            if (ap < d->beta)
-                c++;
-            int avg0 = (dstp[0] + dstp[-1] + 1) >> 1;
-            int delta = CLAMP((((dstp[0] - dstp[-1]) << 2) + (dstp[-2] - dstp[1]) + 4) >> 3, -c, c);
-            int deltaq1 = CLAMP((dstp[2] + avg0 - (dstp[1] << 1)) >> 1, -d->c0, d->c0);
-            int deltap1 = CLAMP((dstp[-3] + avg0 - (dstp[-2] << 1)) >> 1, -d->c0, d->c0);
-            dstp[0] = CLAMP(dstp[0] - delta, 0, 255);
-            dstp[-1] = CLAMP(dstp[-1] + delta, 0, 255);
-            if (ap < d->beta)
-                dstp[1] = dstp[1] + deltaq1;
-            if (aq < d->beta)
-                dstp[-2] = dstp[-2] + deltap1;
-        }
-        dstp += stride;
-    }
-}
-
-static void DeblockVerEdge_16bits(uint16_t *dstp, int stride, const DeblockData *d) {
+template<typename T>
+static void DeblockVerEdge(T *dstp, int stride, const DeblockData *d) {
     const int shift = d->vi->format->bitsPerSample - 8;
     const int peak = (1 << d->vi->format->bitsPerSample) - 1;
 
@@ -218,26 +164,26 @@ static const VSFrameRef *VS_CC deblockGetFrame(int n, int activationReason, void
                 if (d->vi->format->bytesPerSample == 1) {
                     const int stride = vsapi->getStride(dst, plane);
                     for (int x = 4; x < w; x += 4)
-                        DeblockVerEdge_8bits(dstp + x, stride, d);
+                        DeblockVerEdge<uint8_t>(dstp + x, stride, d);
                     dstp += stride * 4;
                     for (int y = 4; y < h; y += 4) {
-                        DeblockHorEdge_8bits(dstp, stride, d);
+                        DeblockHorEdge<uint8_t>(dstp, stride, d);
                         for (int x = 4; x < w; x += 4) {
-                            DeblockHorEdge_8bits(dstp + x, stride, d);
-                            DeblockVerEdge_8bits(dstp + x, stride, d);
+                            DeblockHorEdge<uint8_t>(dstp + x, stride, d);
+                            DeblockVerEdge<uint8_t>(dstp + x, stride, d);
                         }
                         dstp += stride * 4;
                     }
                 } else if (d->vi->format->bytesPerSample == 2) {
                     const int stride = vsapi->getStride(dst, plane) / 2;
                     for (int x = 4; x < w; x += 4)
-                        DeblockVerEdge_16bits((uint16_t *)dstp + x, stride, d);
+                        DeblockVerEdge<uint16_t>((uint16_t *)dstp + x, stride, d);
                     dstp += stride * 8;
                     for (int y = 4; y < h; y += 4) {
-                        DeblockHorEdge_16bits((uint16_t *)dstp, stride, d);
+                        DeblockHorEdge<uint16_t>((uint16_t *)dstp, stride, d);
                         for (int x = 4; x < w; x += 4) {
-                            DeblockHorEdge_16bits((uint16_t *)dstp + x, stride, d);
-                            DeblockVerEdge_16bits((uint16_t *)dstp + x, stride, d);
+                            DeblockHorEdge<uint16_t>((uint16_t *)dstp + x, stride, d);
+                            DeblockVerEdge<uint16_t>((uint16_t *)dstp + x, stride, d);
                         }
                         dstp += stride * 8;
                     }
