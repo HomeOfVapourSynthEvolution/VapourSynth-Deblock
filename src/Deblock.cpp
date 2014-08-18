@@ -74,7 +74,7 @@ struct DeblockData {
     const VSVideoInfo * vi;
     int quant, aOffset, bOffset;
     int alpha, beta, c0;
-    int process[3];
+    bool process[3];
 };
 
 template<typename T>
@@ -89,9 +89,9 @@ static void DeblockHorEdge(T *dstp, int stride, const DeblockData *d) {
     T * sp2 = dstp - stride * 3;
 
     for (int i = 0; i < 4; i++) {
-        if ((abs(sp0[i] - sq0[i]) < d->alpha) && (abs(sp1[i] - sp0[i]) < d->beta) && (abs(sq0[i] - sq1[i]) < d->beta)) {
-            int ap = abs(sp2[i] - sp0[i]);
-            int aq = abs(sq2[i] - sq0[i]);
+        if ((std::abs(sp0[i] - sq0[i]) < d->alpha) && (std::abs(sp1[i] - sp0[i]) < d->beta) && (std::abs(sq0[i] - sq1[i]) < d->beta)) {
+            int ap = std::abs(sp2[i] - sp0[i]);
+            int aq = std::abs(sq2[i] - sq0[i]);
             int c = d->c0;
             if (aq < d->beta)
                 c += (1 << shift);
@@ -117,9 +117,9 @@ static void DeblockVerEdge(T *dstp, int stride, const DeblockData *d) {
     const int peak = (1 << d->vi->format->bitsPerSample) - 1;
 
     for (int i = 0; i < 4; i++) {
-        if ((abs(dstp[0] - dstp[-1]) < d->alpha) && (abs(dstp[1] - dstp[0]) < d->beta) && (abs(dstp[-1] - dstp[-2]) < d->beta)) {
-            int ap = abs(dstp[2] - dstp[0]);
-            int aq = abs(dstp[-3] - dstp[-1]);
+        if ((std::abs(dstp[0] - dstp[-1]) < d->alpha) && (std::abs(dstp[1] - dstp[0]) < d->beta) && (std::abs(dstp[-1] - dstp[-2]) < d->beta)) {
+            int ap = std::abs(dstp[2] - dstp[0]);
+            int aq = std::abs(dstp[-3] - dstp[-1]);
             int c = d->c0;
             if (aq < d->beta)
                 c += (1 << shift);
@@ -211,12 +211,8 @@ static void VS_CC deblockCreate(const VSMap *in, VSMap *out, void *userData, VSC
     d.quant = int64ToIntS(vsapi->propGetInt(in, "quant", 0, &err));
     if (err)
         d.quant = 25;
-    d.aOffset = int64ToIntS(vsapi->propGetInt(in, "aoffset", 0, &err));
-    if (err)
-        d.aOffset = 0;
-    d.bOffset = int64ToIntS(vsapi->propGetInt(in, "boffset", 0, &err));
-    if (err)
-        d.bOffset = 0;
+    d.aOffset = int64ToIntS(vsapi->propGetInt(in, "aoffset", 0, nullptr));
+    d.bOffset = int64ToIntS(vsapi->propGetInt(in, "boffset", 0, nullptr));
 
     if (d.quant < 0 || d.quant > DEBLOCK_QUANT_MAX) {
         vsapi->setError(out, ("Deblock: quant must be between 0 and " + std::to_string(DEBLOCK_QUANT_MAX)).c_str());
@@ -273,7 +269,7 @@ static void VS_CC deblockCreate(const VSMap *in, VSMap *out, void *userData, VSC
             return;
         }
 
-        d.process[n] = 1;
+        d.process[n] = true;
     }
 
     data = new DeblockData;
