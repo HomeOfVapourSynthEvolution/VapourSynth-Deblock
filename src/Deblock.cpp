@@ -211,8 +211,8 @@ static void VS_CC deblockCreate(const VSMap *in, VSMap *out, void *userData, VSC
     d.quant = int64ToIntS(vsapi->propGetInt(in, "quant", 0, &err));
     if (err)
         d.quant = 25;
-    d.aOffset = int64ToIntS(vsapi->propGetInt(in, "aoffset", 0, nullptr));
-    d.bOffset = int64ToIntS(vsapi->propGetInt(in, "boffset", 0, nullptr));
+    d.aOffset = int64ToIntS(vsapi->propGetInt(in, "aoffset", 0, &err));
+    d.bOffset = int64ToIntS(vsapi->propGetInt(in, "boffset", 0, &err));
 
     if (d.quant < 0 || d.quant > DEBLOCK_QUANT_MAX) {
         vsapi->setError(out, ("Deblock: quant must be between 0 and " + std::to_string(DEBLOCK_QUANT_MAX)).c_str());
