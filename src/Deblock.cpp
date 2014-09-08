@@ -19,16 +19,15 @@
 // Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA, or visit
 // http://www.gnu.org/copyleft/gpl.html .
 
+#include <algorithm>
 #include <string>
 #include "VapourSynth.h"
 #include "VSHelper.h"
 
 // generalized by Fizick (was max=51)
-#define DEBLOCK_QUANT_MAX 60
+static const int MAX_QUANT = 60;
 
-#define CLAMP(x, min, max) (x < min ? min : (x > max ? max : x))
-
-const int alphas[DEBLOCK_QUANT_MAX + 1] = {
+static const int alphas[] = {
     0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 4, 4,
@@ -42,7 +41,7 @@ const int alphas[DEBLOCK_QUANT_MAX + 1] = {
     255, 255, 255, 255, 255, 255, 255, 255, 255 // added by Fizick 
 };
 
-const int betas[DEBLOCK_QUANT_MAX + 1] = {
+static const int betas[] = {
     0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 2, 2,
@@ -56,7 +55,7 @@ const int betas[DEBLOCK_QUANT_MAX + 1] = {
     19, 20, 21, 22, 23, 24, 25, 26, 27 // added by Fizick 
 };
 
-const int cs[DEBLOCK_QUANT_MAX + 1] = {
+static const int cs[] = {
     0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0,
@@ -83,26 +82,26 @@ static void DeblockHorEdge(T *dstp, int stride, const DeblockData *d) {
     const int peak = (1 << d->vi->format->bitsPerSample) - 1;
     T * sq0 = dstp;
     T * sq1 = dstp + stride;
-    T * sq2 = dstp + stride * 2;
+    const T * sq2 = dstp + stride * 2;
     T * sp0 = dstp - stride;
     T * sp1 = dstp - stride * 2;
-    T * sp2 = dstp - stride * 3;
+    const T * sp2 = dstp - stride * 3;
 
     for (int i = 0; i < 4; i++) {
         if ((std::abs(sp0[i] - sq0[i]) < d->alpha) && (std::abs(sp1[i] - sp0[i]) < d->beta) && (std::abs(sq0[i] - sq1[i]) < d->beta)) {
-            int ap = std::abs(sp2[i] - sp0[i]);
-            int aq = std::abs(sq2[i] - sq0[i]);
+            const int ap = std::abs(sp2[i] - sp0[i]);
+            const int aq = std::abs(sq2[i] - sq0[i]);
             int c = d->c0;
             if (aq < d->beta)
                 c += (1 << shift);
             if (ap < d->beta)
                 c += (1 << shift);
-            int avg0 = (sp0[i] + sq0[i] + 1) >> 1;
-            int delta = CLAMP((((sq0[i] - sp0[i]) << 2) + (sp1[i] - sq1[i]) + 4) >> 3, -c, c);
-            int deltap1 = CLAMP((sp2[i] + avg0 - (sp1[i] << 1)) >> 1, -d->c0, d->c0);
-            int deltaq1 = CLAMP((sq2[i] + avg0 - (sq1[i] << 1)) >> 1, -d->c0, d->c0);
-            sp0[i] = CLAMP(sp0[i] + delta, 0, peak);
-            sq0[i] = CLAMP(sq0[i] - delta, 0, peak);
+            const int avg0 = (sp0[i] + sq0[i] + 1) >> 1;
+            const int delta = std::min(std::max((((sq0[i] - sp0[i]) << 2) + (sp1[i] - sq1[i]) + 4) >> 3, -c), c);
+            const int deltap1 = std::min(std::max((sp2[i] + avg0 - (sp1[i] << 1)) >> 1, -d->c0), d->c0);
+            const int deltaq1 = std::min(std::max((sq2[i] + avg0 - (sq1[i] << 1)) >> 1, -d->c0), d->c0);
+            sp0[i] = std::min(std::max(sp0[i] + delta, 0), peak);
+            sq0[i] = std::min(std::max(sq0[i] - delta, 0), peak);
             if (ap < d->beta)
                 sp1[i] = sp1[i] + deltap1;
             if (aq < d->beta)
@@ -118,19 +117,19 @@ static void DeblockVerEdge(T *dstp, int stride, const DeblockData *d) {
 
     for (int i = 0; i < 4; i++) {
         if ((std::abs(dstp[0] - dstp[-1]) < d->alpha) && (std::abs(dstp[1] - dstp[0]) < d->beta) && (std::abs(dstp[-1] - dstp[-2]) < d->beta)) {
-            int ap = std::abs(dstp[2] - dstp[0]);
-            int aq = std::abs(dstp[-3] - dstp[-1]);
+            const int ap = std::abs(dstp[2] - dstp[0]);
+            const int aq = std::abs(dstp[-3] - dstp[-1]);
             int c = d->c0;
             if (aq < d->beta)
                 c += (1 << shift);
             if (ap < d->beta)
                 c += (1 << shift);
-            int avg0 = (dstp[0] + dstp[-1] + 1) >> 1;
-            int delta = CLAMP((((dstp[0] - dstp[-1]) << 2) + (dstp[-2] - dstp[1]) + 4) >> 3, -c, c);
-            int deltaq1 = CLAMP((dstp[2] + avg0 - (dstp[1] << 1)) >> 1, -d->c0, d->c0);
-            int deltap1 = CLAMP((dstp[-3] + avg0 - (dstp[-2] << 1)) >> 1, -d->c0, d->c0);
-            dstp[0] = CLAMP(dstp[0] - delta, 0, peak);
-            dstp[-1] = CLAMP(dstp[-1] + delta, 0, peak);
+            const int avg0 = (dstp[0] + dstp[-1] + 1) >> 1;
+            const int delta = std::min(std::max((((dstp[0] - dstp[-1]) << 2) + (dstp[-2] - dstp[1]) + 4) >> 3, -c), c);
+            const int deltaq1 = std::min(std::max((dstp[2] + avg0 - (dstp[1] << 1)) >> 1, -d->c0), d->c0);
+            const int deltap1 = std::min(std::max((dstp[-3] + avg0 - (dstp[-2] << 1)) >> 1, -d->c0), d->c0);
+            dstp[0] = std::min(std::max(dstp[0] - delta, 0), peak);
+            dstp[-1] = std::min(std::max(dstp[-1] + delta, 0), peak);
             if (ap < d->beta)
                 dstp[1] = dstp[1] + deltaq1;
             if (aq < d->beta)
@@ -153,22 +152,21 @@ static const VSFrameRef *VS_CC deblockGetFrame(int n, int activationReason, void
     } else if (activationReason == arAllFramesReady) {
         const VSFrameRef * src = vsapi->getFrameFilter(n, d->node, frameCtx);
         VSFrameRef * dst = vsapi->copyFrame(src, core);
-        vsapi->freeFrame(src);
 
         for (int plane = 0; plane < d->vi->format->numPlanes; plane++) {
             if (d->process[plane]) {
-                const int w = vsapi->getFrameWidth(dst, plane);
-                const int h = vsapi->getFrameHeight(dst, plane);
+                const int width = vsapi->getFrameWidth(dst, plane);
+                const int height = vsapi->getFrameHeight(dst, plane);
                 uint8_t * dstp = vsapi->getWritePtr(dst, plane);
 
                 if (d->vi->format->bytesPerSample == 1) {
                     const int stride = vsapi->getStride(dst, plane);
-                    for (int x = 4; x < w; x += 4)
+                    for (int x = 4; x < width; x += 4)
                         DeblockVerEdge<uint8_t>(dstp + x, stride, d);
                     dstp += stride * 4;
-                    for (int y = 4; y < h; y += 4) {
+                    for (int y = 4; y < height; y += 4) {
                         DeblockHorEdge<uint8_t>(dstp, stride, d);
-                        for (int x = 4; x < w; x += 4) {
+                        for (int x = 4; x < width; x += 4) {
                             DeblockHorEdge<uint8_t>(dstp + x, stride, d);
                             DeblockVerEdge<uint8_t>(dstp + x, stride, d);
                         }
@@ -176,12 +174,12 @@ static const VSFrameRef *VS_CC deblockGetFrame(int n, int activationReason, void
                     }
                 } else if (d->vi->format->bytesPerSample == 2) {
                     const int stride = vsapi->getStride(dst, plane) / 2;
-                    for (int x = 4; x < w; x += 4)
+                    for (int x = 4; x < width; x += 4)
                         DeblockVerEdge<uint16_t>((uint16_t *)dstp + x, stride, d);
                     dstp += stride * 8;
-                    for (int y = 4; y < h; y += 4) {
+                    for (int y = 4; y < height; y += 4) {
                         DeblockHorEdge<uint16_t>((uint16_t *)dstp, stride, d);
-                        for (int x = 4; x < w; x += 4) {
+                        for (int x = 4; x < width; x += 4) {
                             DeblockHorEdge<uint16_t>((uint16_t *)dstp + x, stride, d);
                             DeblockVerEdge<uint16_t>((uint16_t *)dstp + x, stride, d);
                         }
@@ -191,6 +189,7 @@ static const VSFrameRef *VS_CC deblockGetFrame(int n, int activationReason, void
             }
         }
 
+        vsapi->freeFrame(src);
         return dst;
     }
 
@@ -214,13 +213,13 @@ static void VS_CC deblockCreate(const VSMap *in, VSMap *out, void *userData, VSC
     d.aOffset = int64ToIntS(vsapi->propGetInt(in, "aoffset", 0, &err));
     d.bOffset = int64ToIntS(vsapi->propGetInt(in, "boffset", 0, &err));
 
-    if (d.quant < 0 || d.quant > DEBLOCK_QUANT_MAX) {
-        vsapi->setError(out, ("Deblock: quant must be between 0 and " + std::to_string(DEBLOCK_QUANT_MAX)).c_str());
+    if (d.quant < 0 || d.quant > MAX_QUANT) {
+        vsapi->setError(out, ("Deblock: quant must be between 0 and " + std::to_string(MAX_QUANT)).c_str());
         return;
     }
 
-    d.aOffset = CLAMP(d.aOffset, -d.quant, DEBLOCK_QUANT_MAX - d.quant);
-    d.bOffset = CLAMP(d.bOffset, -d.quant, DEBLOCK_QUANT_MAX - d.quant);
+    d.aOffset = std::min(std::max(d.aOffset, -d.quant), MAX_QUANT - d.quant);
+    d.bOffset = std::min(std::max(d.bOffset, -d.quant), MAX_QUANT - d.quant);
     const int indexa = d.quant + d.aOffset;
     const int indexb = d.quant + d.bOffset;
     d.alpha = alphas[indexa];
