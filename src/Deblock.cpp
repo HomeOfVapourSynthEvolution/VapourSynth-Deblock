@@ -77,7 +77,7 @@ struct DeblockData {
 };
 
 template<typename T>
-static void DeblockHorEdge(T * dstp, const int stride, const DeblockData * d) {
+static void DeblockHorEdge(T * VS_RESTRICT dstp, const int stride, const DeblockData * d) {
     const int shift = d->vi->format->bitsPerSample - 8;
     const int peak = (1 << d->vi->format->bitsPerSample) - 1;
     T * sq0 = dstp;
@@ -111,7 +111,7 @@ static void DeblockHorEdge(T * dstp, const int stride, const DeblockData * d) {
 }
 
 template<typename T>
-static void DeblockVerEdge(T * dstp, const int stride, const DeblockData * d) {
+static void DeblockVerEdge(T * VS_RESTRICT dstp, const int stride, const DeblockData * d) {
     const int shift = d->vi->format->bitsPerSample - 8;
     const int peak = (1 << d->vi->format->bitsPerSample) - 1;
 
