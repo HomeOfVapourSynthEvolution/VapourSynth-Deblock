@@ -1,5 +1,5 @@
 #----------------------------------------------------------------------------
-#  Makefile for VapourSynth-Deblock, modified based on d2vsource/GNUmakefile
+#  Makefile for VapourSynth-Deblock
 #----------------------------------------------------------------------------
 
 include config.mak
