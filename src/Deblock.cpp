@@ -79,7 +79,7 @@ struct DeblockData {
 };
 
 template<typename T>
-static void deblockHorEdge(T * VS_RESTRICT dstp, const int stride, const int plane, const DeblockData * d) {
+static void deblockHorEdge(T * VS_RESTRICT dstp, const int stride, const DeblockData * d) {
     const int shift = d->vi->format->bitsPerSample - 8;
     const int peak = (1 << d->vi->format->bitsPerSample) - 1;
     const int alpha = d->alpha;
@@ -115,8 +115,7 @@ static void deblockHorEdge(T * VS_RESTRICT dstp, const int stride, const int pla
     }
 }
 
-template<>
-void deblockHorEdge<float>(float * VS_RESTRICT dstp, const int stride, const int plane, const DeblockData * d) {
+static void deblockHorEdge(float * VS_RESTRICT dstp, const int stride, const int plane, const DeblockData * d) {
     const float lower = d->lower[plane];
     const float upper = d->upper[plane];
     const float alpha = d->alphaF;
@@ -153,7 +152,7 @@ void deblockHorEdge<float>(float * VS_RESTRICT dstp, const int stride, const int
 }
 
 template<typename T>
-static void deblockVerEdge(T * VS_RESTRICT dstp, const int stride, const int plane, const DeblockData * d) {
+static void deblockVerEdge(T * VS_RESTRICT dstp, const int stride, const DeblockData * d) {
     const int shift = d->vi->format->bitsPerSample - 8;
     const int peak = (1 << d->vi->format->bitsPerSample) - 1;
     const int alpha = d->alpha;
@@ -184,8 +183,7 @@ static void deblockVerEdge(T * VS_RESTRICT dstp, const int stride, const int pla
     }
 }
 
-template<>
-void deblockVerEdge<float>(float * VS_RESTRICT dstp, const int stride, const int plane, const DeblockData * d) {
+static void deblockVerEdge(float * VS_RESTRICT dstp, const int stride, const int plane, const DeblockData * d) {
     const float lower = d->lower[plane];
     const float upper = d->upper[plane];
     const float alpha = d->alphaF;
@@ -241,13 +239,13 @@ static const VSFrameRef *VS_CC deblockGetFrame(int n, int activationReason, void
                         const int stride = vsapi->getStride(dst, plane);
 
                         for (int x = 4; x < width; x += 4)
-                            deblockVerEdge<uint8_t>(dstp8 + x, stride, plane, d);
+                            deblockVerEdge<uint8_t>(dstp8 + x, stride, d);
                         dstp8 += stride * 4;
                         for (int y = 4; y < height; y += 4) {
-                            deblockHorEdge<uint8_t>(dstp8, stride, plane, d);
+                            deblockHorEdge<uint8_t>(dstp8, stride, d);
                             for (int x = 4; x < width; x += 4) {
-                                deblockHorEdge<uint8_t>(dstp8 + x, stride, plane, d);
-                                deblockVerEdge<uint8_t>(dstp8 + x, stride, plane, d);
+                                deblockHorEdge<uint8_t>(dstp8 + x, stride, d);
+                                deblockVerEdge<uint8_t>(dstp8 + x, stride, d);
                             }
                             dstp8 += stride * 4;
                         }
@@ -256,13 +254,13 @@ static const VSFrameRef *VS_CC deblockGetFrame(int n, int activationReason, void
                         uint16_t * dstp = reinterpret_cast<uint16_t *>(dstp8);
 
                         for (int x = 4; x < width; x += 4)
-                            deblockVerEdge<uint16_t>(dstp + x, stride, plane, d);
+                            deblockVerEdge<uint16_t>(dstp + x, stride, d);
                         dstp += stride * 4;
                         for (int y = 4; y < height; y += 4) {
-                            deblockHorEdge<uint16_t>(dstp, stride, plane, d);
+                            deblockHorEdge<uint16_t>(dstp, stride, d);
                             for (int x = 4; x < width; x += 4) {
-                                deblockHorEdge<uint16_t>(dstp + x, stride, plane, d);
-                                deblockVerEdge<uint16_t>(dstp + x, stride, plane, d);
+                                deblockHorEdge<uint16_t>(dstp + x, stride, d);
+                                deblockVerEdge<uint16_t>(dstp + x, stride, d);
                             }
                             dstp += stride * 4;
                         }
@@ -272,13 +270,13 @@ static const VSFrameRef *VS_CC deblockGetFrame(int n, int activationReason, void
                     float * dstp = reinterpret_cast<float *>(dstp8);
 
                     for (int x = 4; x < width; x += 4)
-                        deblockVerEdge<float>(dstp + x, stride, plane, d);
+                        deblockVerEdge(dstp + x, stride, plane, d);
                     dstp += stride * 4;
                     for (int y = 4; y < height; y += 4) {
-                        deblockHorEdge<float>(dstp, stride, plane, d);
+                        deblockHorEdge(dstp, stride, plane, d);
                         for (int x = 4; x < width; x += 4) {
-                            deblockHorEdge<float>(dstp + x, stride, plane, d);
-                            deblockVerEdge<float>(dstp + x, stride, plane, d);
+                            deblockHorEdge(dstp + x, stride, plane, d);
+                            deblockVerEdge(dstp + x, stride, plane, d);
                         }
                         dstp += stride * 4;
                     }
