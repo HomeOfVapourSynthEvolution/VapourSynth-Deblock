@@ -20,6 +20,8 @@
 // http://www.gnu.org/copyleft/gpl.html .
 
 #include <algorithm>
+#include <cmath>
+#include <cstdlib>
 #include <string>
 #include <vapoursynth/VapourSynth.h>
 #include <vapoursynth/VSHelper.h>
