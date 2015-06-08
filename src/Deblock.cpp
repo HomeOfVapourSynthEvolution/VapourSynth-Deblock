@@ -292,7 +292,7 @@ static void VS_CC deblockCreate(const VSMap *in, VSMap *out, void *userData, VSC
     d.bOffset = int64ToIntS(vsapi->propGetInt(in, "boffset", 0, &err));
 
     if (d.quant < 0 || d.quant > QUANT_MAX) {
-        vsapi->setError(out, std::string("Deblock: quant must be between 0 and ").append(std::to_string(QUANT_MAX)).append(" inclusive").c_str());
+        vsapi->setError(out, std::string("Deblock: quant must be between 0 and ").append(std::to_string(QUANT_MAX)).append(" (inclusive)").c_str());
         return;
     }
 
