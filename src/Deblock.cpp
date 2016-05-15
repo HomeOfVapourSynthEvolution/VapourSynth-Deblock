@@ -76,9 +76,13 @@ struct DeblockData {
     bool process[3];
     int alpha, beta, c0;
     float alphaF, betaF, c0F;
-    int shift, peak;
+    int peak;
     float lower[3], upper[3];
 };
+
+static inline int scale(const int64_t val, const int64_t bits) {
+    return int64ToIntS(val * ((1 << bits) - 1) / 255);
+}
 
 template<typename T>
 static void deblockHorEdge(T * VS_RESTRICT dstp, const int stride, const int plane, const DeblockData * d) {
@@ -100,9 +104,9 @@ static void deblockHorEdge(T * VS_RESTRICT dstp, const int stride, const int pla
 
             int c = c0;
             if (aq < beta)
-                c += 1 << d->shift;
+                c += scale(1, d->vi->format->bitsPerSample);
             if (ap < beta)
-                c += 1 << d->shift;
+                c += scale(1, d->vi->format->bitsPerSample);
 
             const int avg0 = (sp0[i] + sq0[i] + 1) / 2;
             const int delta = std::min(std::max(((sq0[i] - sp0[i]) * 4 + sp1[i] - sq1[i] + 4) / 8, -c), c);
@@ -171,9 +175,9 @@ static void deblockVerEdge(T * VS_RESTRICT dstp, const int stride, const int pla
 
             int c = c0;
             if (aq < beta)
-                c += 1 << d->shift;
+                c += scale(1, d->vi->format->bitsPerSample);
             if (ap < beta)
-                c += 1 << d->shift;
+                c += scale(1, d->vi->format->bitsPerSample);
 
             const int avg0 = (dstp[0] + dstp[-1] + 1) / 2;
             const int delta = std::min(std::max(((dstp[0] - dstp[-1]) * 4 + dstp[-2] - dstp[1] + 4) / 8, -c), c);
@@ -355,10 +359,9 @@ static void VS_CC deblockCreate(const VSMap *in, VSMap *out, void *userData, VSC
     d.c0 = cs[aIndex];
 
     if (d.vi->format->sampleType == stInteger) {
-        d.shift = d.vi->format->bitsPerSample - 8;
-        d.alpha <<= d.shift;
-        d.beta <<= d.shift;
-        d.c0 <<= d.shift;
+        d.alpha = scale(d.alpha, d.vi->format->bitsPerSample);
+        d.beta = scale(d.beta, d.vi->format->bitsPerSample);
+        d.c0 = scale(d.c0, d.vi->format->bitsPerSample);
         d.peak = (1 << d.vi->format->bitsPerSample) - 1;
     } else {
         d.alphaF = d.alpha / 255.f;
