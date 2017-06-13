@@ -78,11 +78,10 @@ struct DeblockData {
     int alpha, beta, c0, c1;
     float alphaF, betaF, c0F, c1F;
     int peak;
-    float lower[3], upper[3];
 };
 
 template<typename T>
-static void deblockHorEdge(T * VS_RESTRICT dstp, const unsigned stride, const unsigned plane, const DeblockData * d) noexcept {
+static void deblockHorEdge(T * VS_RESTRICT dstp, const unsigned stride, const DeblockData * d) noexcept {
     const int alpha = d->alpha;
     const int beta = d->beta;
     const int c0 = d->c0;
@@ -122,7 +121,7 @@ static void deblockHorEdge(T * VS_RESTRICT dstp, const unsigned stride, const un
 }
 
 template<>
-void deblockHorEdge(float * VS_RESTRICT dstp, const unsigned stride, const unsigned plane, const DeblockData * d) noexcept {
+void deblockHorEdge(float * VS_RESTRICT dstp, const unsigned stride, const DeblockData * d) noexcept {
     const float alpha = d->alphaF;
     const float beta = d->betaF;
     const float c0 = d->c0F;
@@ -151,8 +150,8 @@ void deblockHorEdge(float * VS_RESTRICT dstp, const unsigned stride, const unsig
             const float deltap1 = std::min(std::max((sp2[i] + avg - sp1[i] * 2.f) / 2.f, -c0), c0);
             const float deltaq1 = std::min(std::max((sq2[i] + avg - sq1[i] * 2.f) / 2.f, -c0), c0);
 
-            sp0[i] = std::min(std::max(sp0[i] + delta, d->lower[plane]), d->upper[plane]);
-            sq0[i] = std::min(std::max(sq0[i] - delta, d->lower[plane]), d->upper[plane]);
+            sp0[i] += delta;
+            sq0[i] -= delta;
             if (ap < beta)
                 sp1[i] += deltap1;
             if (aq < beta)
@@ -162,7 +161,7 @@ void deblockHorEdge(float * VS_RESTRICT dstp, const unsigned stride, const unsig
 }
 
 template<typename T>
-static void deblockVerEdge(T * VS_RESTRICT dstp, const unsigned stride, const unsigned plane, const DeblockData * d) noexcept {
+static void deblockVerEdge(T * VS_RESTRICT dstp, const unsigned stride, const DeblockData * d) noexcept {
     const int alpha = d->alpha;
     const int beta = d->beta;
     const int c0 = d->c0;
@@ -197,7 +196,7 @@ static void deblockVerEdge(T * VS_RESTRICT dstp, const unsigned stride, const un
 }
 
 template<>
-void deblockVerEdge(float * VS_RESTRICT dstp, const unsigned stride, const unsigned plane, const DeblockData * d) noexcept {
+void deblockVerEdge(float * VS_RESTRICT dstp, const unsigned stride, const DeblockData * d) noexcept {
     const float alpha = d->alphaF;
     const float beta = d->betaF;
     const float c0 = d->c0F;
@@ -219,8 +218,8 @@ void deblockVerEdge(float * VS_RESTRICT dstp, const unsigned stride, const unsig
             const float deltaq1 = std::min(std::max((dstp[2] + avg - dstp[1] * 2.f) / 2.f, -c0), c0);
             const float deltap1 = std::min(std::max((dstp[-3] + avg - dstp[-2] * 2.f) / 2.f, -c0), c0);
 
-            dstp[0] = std::min(std::max(dstp[0] - delta, d->lower[plane]), d->upper[plane]);
-            dstp[-1] = std::min(std::max(dstp[-1] + delta, d->lower[plane]), d->upper[plane]);
+            dstp[0] -= delta;
+            dstp[-1] += delta;
             if (ap < beta)
                 dstp[1] += deltaq1;
             if (aq < beta)
@@ -241,16 +240,16 @@ static void process(VSFrameRef * dst, const DeblockData * d, const VSAPI * vsapi
             T * VS_RESTRICT dstp = reinterpret_cast<T *>(vsapi->getWritePtr(dst, plane));
 
             for (unsigned x = 4; x < width; x += 4)
-                deblockVerEdge(dstp + x, stride, plane, d);
+                deblockVerEdge(dstp + x, stride, d);
 
             dstp += stride * 4;
 
             for (unsigned y = 4; y < height; y += 4) {
-                deblockHorEdge(dstp, stride, plane, d);
+                deblockHorEdge(dstp, stride, d);
 
                 for (unsigned x = 4; x < width; x += 4) {
-                    deblockHorEdge(dstp + x, stride, plane, d);
-                    deblockVerEdge(dstp + x, stride, plane, d);
+                    deblockHorEdge(dstp + x, stride, d);
+                    deblockVerEdge(dstp + x, stride, d);
                 }
 
                 dstp += stride * 4;
@@ -355,16 +354,6 @@ static void VS_CC deblockCreate(const VSMap *in, VSMap *out, void *userData, VSC
             d->betaF = d->beta / 255.f;
             d->c0F = d->c0 / 255.f;
             d->c1F = 1.f / 255.f;
-
-            for (int plane = 0; plane < d->vi->format->numPlanes; plane++) {
-                if (plane == 0 || d->vi->format->colorFamily == cmRGB) {
-                    d->lower[plane] = 0.f;
-                    d->upper[plane] = 1.f;
-                } else {
-                    d->lower[plane] = -0.5f;
-                    d->upper[plane] = 0.5f;
-                }
-            }
         }
 
         if (padWidth || padHeight) {
