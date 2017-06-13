@@ -81,7 +81,7 @@ struct DeblockData {
 };
 
 template<typename T>
-static void deblockHorEdge(T * VS_RESTRICT dstp, const unsigned stride, const DeblockData * d) noexcept {
+static inline void deblockHorEdge(T * VS_RESTRICT dstp, const unsigned stride, const DeblockData * d) noexcept {
     const int alpha = d->alpha;
     const int beta = d->beta;
     const int c0 = d->c0;
@@ -105,10 +105,10 @@ static void deblockHorEdge(T * VS_RESTRICT dstp, const unsigned stride, const De
             if (ap < beta)
                 c += c1;
 
-            const int avg = (sp0[i] + sq0[i] + 1) / 2;
-            const int delta = std::min(std::max(((sq0[i] - sp0[i]) * 4 + sp1[i] - sq1[i] + 4) / 8, -c), c);
-            const int deltap1 = std::min(std::max((sp2[i] + avg - sp1[i] * 2) / 2, -c0), c0);
-            const int deltaq1 = std::min(std::max((sq2[i] + avg - sq1[i] * 2) / 2, -c0), c0);
+            const int avg = (sp0[i] + sq0[i] + 1) >> 1;
+            const int delta = std::min(std::max(((sq0[i] - sp0[i]) * 4 + sp1[i] - sq1[i] + 4) >> 3, -c), c);
+            const int deltap1 = std::min(std::max((sp2[i] + avg - sp1[i] * 2) >> 1, -c0), c0);
+            const int deltaq1 = std::min(std::max((sq2[i] + avg - sq1[i] * 2) >> 1, -c0), c0);
 
             sp0[i] = std::min(std::max(sp0[i] + delta, 0), d->peak);
             sq0[i] = std::min(std::max(sq0[i] - delta, 0), d->peak);
@@ -121,7 +121,7 @@ static void deblockHorEdge(T * VS_RESTRICT dstp, const unsigned stride, const De
 }
 
 template<>
-void deblockHorEdge(float * VS_RESTRICT dstp, const unsigned stride, const DeblockData * d) noexcept {
+inline void deblockHorEdge(float * VS_RESTRICT dstp, const unsigned stride, const DeblockData * d) noexcept {
     const float alpha = d->alphaF;
     const float beta = d->betaF;
     const float c0 = d->c0F;
@@ -161,7 +161,7 @@ void deblockHorEdge(float * VS_RESTRICT dstp, const unsigned stride, const Deblo
 }
 
 template<typename T>
-static void deblockVerEdge(T * VS_RESTRICT dstp, const unsigned stride, const DeblockData * d) noexcept {
+static inline void deblockVerEdge(T * VS_RESTRICT dstp, const unsigned stride, const DeblockData * d) noexcept {
     const int alpha = d->alpha;
     const int beta = d->beta;
     const int c0 = d->c0;
@@ -178,10 +178,10 @@ static void deblockVerEdge(T * VS_RESTRICT dstp, const unsigned stride, const De
             if (ap < beta)
                 c += c1;
 
-            const int avg = (dstp[0] + dstp[-1] + 1) / 2;
-            const int delta = std::min(std::max(((dstp[0] - dstp[-1]) * 4 + dstp[-2] - dstp[1] + 4) / 8, -c), c);
-            const int deltaq1 = std::min(std::max((dstp[2] + avg - dstp[1] * 2) / 2, -c0), c0);
-            const int deltap1 = std::min(std::max((dstp[-3] + avg - dstp[-2] * 2) / 2, -c0), c0);
+            const int avg = (dstp[0] + dstp[-1] + 1) >> 1;
+            const int delta = std::min(std::max(((dstp[0] - dstp[-1]) * 4 + dstp[-2] - dstp[1] + 4) >> 3, -c), c);
+            const int deltaq1 = std::min(std::max((dstp[2] + avg - dstp[1] * 2) >> 1, -c0), c0);
+            const int deltap1 = std::min(std::max((dstp[-3] + avg - dstp[-2] * 2) >> 1, -c0), c0);
 
             dstp[0] = std::min(std::max(dstp[0] - delta, 0), d->peak);
             dstp[-1] = std::min(std::max(dstp[-1] + delta, 0), d->peak);
@@ -196,7 +196,7 @@ static void deblockVerEdge(T * VS_RESTRICT dstp, const unsigned stride, const De
 }
 
 template<>
-void deblockVerEdge(float * VS_RESTRICT dstp, const unsigned stride, const DeblockData * d) noexcept {
+inline void deblockVerEdge(float * VS_RESTRICT dstp, const unsigned stride, const DeblockData * d) noexcept {
     const float alpha = d->alphaF;
     const float beta = d->betaF;
     const float c0 = d->c0F;
