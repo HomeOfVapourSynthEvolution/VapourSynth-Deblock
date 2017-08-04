@@ -20,3 +20,13 @@ Usage
 * planes: A list of the planes to process. By default all planes are processed.
 
 If `quant` + `aoffset` is inferior to 16, the filter does nothing at all. The same goes for `quant` + `boffset`.
+
+
+Compilation
+===========
+
+```
+./autogen.sh
+./configure
+make
+```
