@@ -8,8 +8,6 @@ sources = 'Deblock/Deblock.cpp'
 
 vapoursynth_dep = dependency('vapoursynth').partial_dependency(compile_args : true, includes : true)
 
-add_project_arguments('-ffast-math', language : 'cpp')
-
 if host_machine.cpu_family().startswith('x86')
   add_project_arguments('-mfpmath=sse', '-msse2', language : 'cpp')
 endif
