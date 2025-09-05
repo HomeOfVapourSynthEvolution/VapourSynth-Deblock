@@ -28,12 +28,5 @@ Compilation
 ```
 meson build
 ninja -C build
-```
-
-or
-
-```
-./autogen.sh
-./configure
-make
+ninja -C build install
 ```
