@@ -1,20 +1,32 @@
 project('Deblock', 'cpp',
-  default_options : ['buildtype=release', 'b_ndebug=if-release', 'cpp_std=c++14'],
-  meson_version : '>=0.48.0',
-  version : '6'
+  default_options: ['buildtype=release', 'warning_level=2', 'b_lto=true', 'b_ndebug=if-release', 'cpp_std=c++17'],
+  license: 'GPL-2.0-or-later',
+  meson_version: '>=0.51.0',
+  version: '6',
 )
 
-sources = 'Deblock/Deblock.cpp'
+cxx = meson.get_compiler('cpp')
 
-vapoursynth_dep = dependency('vapoursynth').partial_dependency(compile_args : true, includes : true)
+gcc_syntax = cxx.get_argument_syntax() == 'gcc'
 
-if host_machine.cpu_family().startswith('x86')
-  add_project_arguments('-mfpmath=sse', '-msse2', language : 'cpp')
+if get_option('buildtype') == 'release'
+  add_project_arguments(gcc_syntax ? ['-fno-math-errno', '-fno-trapping-math'] : '/GS-', language: 'cpp')
 endif
 
-shared_module('deblock', sources,
-  dependencies : vapoursynth_dep,
-  install : true,
-  install_dir : join_paths(vapoursynth_dep.get_pkgconfig_variable('libdir'), 'vapoursynth'),
-  gnu_symbol_visibility : 'hidden'
+sources = files('Deblock/Deblock.cpp')
+
+if gcc_syntax
+  vapoursynth_dep = dependency('vapoursynth', version: '>=55').partial_dependency(compile_args: true, includes: true)
+  install_dir = vapoursynth_dep.get_variable(pkgconfig: 'libdir') / 'vapoursynth'
+else
+  vapoursynth_dep = []
+  install_dir = get_option('libdir') / 'vapoursynth'
+endif
+
+shared_module('deblock',
+  sources,
+  dependencies: vapoursynth_dep,
+  gnu_symbol_visibility: 'hidden',
+  install: true,
+  install_dir: install_dir,
 )
