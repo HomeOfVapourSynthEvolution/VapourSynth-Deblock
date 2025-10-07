@@ -29,6 +29,8 @@
 #include <VapourSynth4.h>
 #include <VSHelper4.h>
 
+using namespace std::string_literals;
+
 static constexpr int QUANT_MAX = 60; // generalized by Fizick (was max=51)
 
 static constexpr int alphas[] = {
@@ -299,7 +301,7 @@ static void VS_CC deblockCreate(const VSMap* in, VSMap* out, [[maybe_unused]] vo
         if (!vsh::isConstantVideoFormat(d->vi) ||
             (d->vi->format.sampleType == stInteger && d->vi->format.bitsPerSample > 16) ||
             (d->vi->format.sampleType == stFloat && d->vi->format.bitsPerSample != 32))
-            throw "only constant format 8-16 bit integer and 32 bit float input supported";
+            throw "only constant format 8-16 bit integer and 32 bit float input supported"s;
 
         int quant = vsapi->mapGetIntSaturated(in, "quant", 0, &err);
         if (err)
@@ -321,10 +323,10 @@ static void VS_CC deblockCreate(const VSMap* in, VSMap* out, [[maybe_unused]] vo
             const int n = vsapi->mapGetIntSaturated(in, "planes", i, nullptr);
 
             if (n < 0 || n >= d->vi->format.numPlanes)
-                throw "plane index out of range";
+                throw "plane index out of range"s;
 
             if (d->process[n])
-                throw "plane specified twice";
+                throw "plane specified twice"s;
 
             d->process[n] = true;
         }
