@@ -434,7 +434,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin* plugin, const VSPLUGINAPI
     vspapi->configPlugin("com.holywu.deblock",
                          "deblock",
                          "Reduces the blockiness of the image using the deblocking filter from h264",
-                         VS_MAKE_VERSION(8, 1),
+                         VS_MAKE_VERSION(9, 0),
                          VAPOURSYNTH_API_VERSION,
                          0,
                          plugin);
