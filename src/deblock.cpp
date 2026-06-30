@@ -1,23 +1,24 @@
-// VapourSynth port by HolyWu
-//
-// DeBlock plugin for Avisynth 2.5 - takes a clip, and deblock it using H264 deblocking
-// Copyright(c)2004 Manao as a function in MVTools v.0.9.6.2
-// Copyright(c)2006 Alexander Balakhnin aka Fizick - separate plugin, YUY2 support
-//
-// This program is free software; you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation; either version 2 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License
-// along with this program; if not, write to the Free Software
-// Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA, or visit
-// http://www.gnu.org/copyleft/gpl.html .
+/*
+    VapourSynth port by HolyWu
+
+    DeBlock plugin for Avisynth 2.5 - takes a clip, and deblock it using H264 deblocking
+    Copyright(c)2004 Manao as a function in MVTools v.0.9.6.2
+    Copyright(c)2006 Alexander Balakhnin aka Fizick - separate plugin, YUY2 support
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+*/
 
 #include <cmath>
 #include <cstdlib>
@@ -26,10 +27,13 @@
 #include <string>
 #include <memory>
 
-#include <VapourSynth4.h>
-#include <VSHelper4.h>
+#include "deblock.h"
 
 using namespace std::string_literals;
+
+#ifdef DEBLOCK_X86
+template<typename pixel_t> extern void filterSSE4(VSFrame* dst, const DeblockData* VS_RESTRICT d, const VSAPI* vsapi) noexcept;
+#endif
 
 static constexpr int QUANT_MAX = 60; // generalized by Fizick (was max=51)
 
@@ -74,15 +78,6 @@ static constexpr int cs[] = {
     19, 21, 23, 25, 27, 29, 31, 33, 35 // added by Fizick for really strong deblocking :)
 };
 
-struct DeblockData final {
-    VSNode* node;
-    const VSVideoInfo* vi;
-    bool process[3];
-    int alpha, beta, c0, c1, peak;
-    float alphaF, betaF, c0F, c1F;
-    void (*filter)(VSFrame* dst, const DeblockData* VS_RESTRICT d, const VSAPI* vsapi) noexcept;
-};
-
 template<typename pixel_t>
 static inline void deblockHorEdge(pixel_t* VS_RESTRICT dstp, const ptrdiff_t stride, const DeblockData* VS_RESTRICT d) noexcept {
     const int alpha = d->alpha;
@@ -90,12 +85,12 @@ static inline void deblockHorEdge(pixel_t* VS_RESTRICT dstp, const ptrdiff_t str
     const int c0 = d->c0;
     const int c1 = d->c1;
 
+    const pixel_t* sp2 = dstp - 3 * stride;
+    pixel_t* VS_RESTRICT sp1 = dstp - 2 * stride;
+    pixel_t* VS_RESTRICT sp0 = dstp - stride;
     pixel_t* VS_RESTRICT sq0 = dstp;
     pixel_t* VS_RESTRICT sq1 = dstp + stride;
-    const pixel_t* sq2 = dstp + stride * 2;
-    pixel_t* VS_RESTRICT sp0 = dstp - stride;
-    pixel_t* VS_RESTRICT sp1 = dstp - stride * 2;
-    const pixel_t* sp2 = dstp - stride * 3;
+    const pixel_t* sq2 = dstp + 2 * stride;
 
     for (int i = 0; i < 4; i++) {
         if (std::abs(sp0[i] - sq0[i]) < alpha && std::abs(sp1[i] - sp0[i]) < beta && std::abs(sq0[i] - sq1[i]) < beta) {
@@ -103,22 +98,22 @@ static inline void deblockHorEdge(pixel_t* VS_RESTRICT dstp, const ptrdiff_t str
             const int aq = std::abs(sq2[i] - sq0[i]);
 
             int c = c0;
-            if (aq < beta)
-                c += c1;
             if (ap < beta)
+                c += c1;
+            if (aq < beta)
                 c += c1;
 
             const int avg = (sp0[i] + sq0[i] + 1) >> 1;
-            const int delta = std::clamp(((sq0[i] - sp0[i]) * 4 + sp1[i] - sq1[i] + 4) >> 3, -c, c);
-            const int deltap1 = std::clamp((sp2[i] + avg - sp1[i] * 2) >> 1, -c0, c0);
-            const int deltaq1 = std::clamp((sq2[i] + avg - sq1[i] * 2) >> 1, -c0, c0);
+            const int delta = std::clamp((((sq0[i] - sp0[i]) << 2) + sp1[i] - sq1[i] + 4) >> 3, -c, c);
+            const int deltap1 = std::clamp((sp2[i] + avg - (sp1[i] << 1)) >> 1, -c0, c0);
+            const int deltaq1 = std::clamp((sq2[i] + avg - (sq1[i] << 1)) >> 1, -c0, c0);
 
             sp0[i] = std::clamp(sp0[i] + delta, 0, d->peak);
             sq0[i] = std::clamp(sq0[i] - delta, 0, d->peak);
             if (ap < beta)
-                sp1[i] += deltap1;
+                sp1[i] = std::clamp(sp1[i] + deltap1, 0, d->peak);
             if (aq < beta)
-                sq1[i] += deltaq1;
+                sq1[i] = std::clamp(sq1[i] + deltaq1, 0, d->peak);
         }
     }
 }
@@ -130,12 +125,12 @@ inline void deblockHorEdge(float* VS_RESTRICT dstp, const ptrdiff_t stride, cons
     const float c0 = d->c0F;
     const float c1 = d->c1F;
 
+    const float* sp2 = dstp - 3 * stride;
+    float* VS_RESTRICT sp1 = dstp - 2 * stride;
+    float* VS_RESTRICT sp0 = dstp - stride;
     float* VS_RESTRICT sq0 = dstp;
     float* VS_RESTRICT sq1 = dstp + stride;
-    const float* sq2 = dstp + stride * 2;
-    float* VS_RESTRICT sp0 = dstp - stride;
-    float* VS_RESTRICT sp1 = dstp - stride * 2;
-    const float* sp2 = dstp - stride * 3;
+    const float* sq2 = dstp + 2 * stride;
 
     for (int i = 0; i < 4; i++) {
         if (std::abs(sp0[i] - sq0[i]) < alpha && std::abs(sp1[i] - sp0[i]) < beta && std::abs(sq0[i] - sq1[i]) < beta) {
@@ -143,15 +138,15 @@ inline void deblockHorEdge(float* VS_RESTRICT dstp, const ptrdiff_t stride, cons
             const float aq = std::abs(sq2[i] - sq0[i]);
 
             float c = c0;
-            if (aq < beta)
-                c += c1;
             if (ap < beta)
                 c += c1;
+            if (aq < beta)
+                c += c1;
 
-            const float avg = (sp0[i] + sq0[i]) / 2.0f;
-            const float delta = std::clamp(((sq0[i] - sp0[i]) * 4.0f + sp1[i] - sq1[i]) / 8.0f, -c, c);
-            const float deltap1 = std::clamp((sp2[i] + avg - sp1[i] * 2.0f) / 2.0f, -c0, c0);
-            const float deltaq1 = std::clamp((sq2[i] + avg - sq1[i] * 2.0f) / 2.0f, -c0, c0);
+            const float avg = (sp0[i] + sq0[i]) * 0.5f;
+            const float delta = std::clamp(((sq0[i] - sp0[i]) * 4.0f + sp1[i] - sq1[i]) * 0.125f, -c, c);
+            const float deltap1 = std::clamp((sp2[i] + avg - sp1[i] * 2.0f) * 0.5f, -c0, c0);
+            const float deltaq1 = std::clamp((sq2[i] + avg - sq1[i] * 2.0f) * 0.5f, -c0, c0);
 
             sp0[i] += delta;
             sq0[i] -= delta;
@@ -176,22 +171,22 @@ static inline void deblockVerEdge(pixel_t* VS_RESTRICT dstp, const ptrdiff_t str
             const int aq = std::abs(dstp[-3] - dstp[-1]);
 
             int c = c0;
-            if (aq < beta)
-                c += c1;
             if (ap < beta)
+                c += c1;
+            if (aq < beta)
                 c += c1;
 
             const int avg = (dstp[0] + dstp[-1] + 1) >> 1;
-            const int delta = std::clamp(((dstp[0] - dstp[-1]) * 4 + dstp[-2] - dstp[1] + 4) >> 3, -c, c);
-            const int deltaq1 = std::clamp((dstp[2] + avg - dstp[1] * 2) >> 1, -c0, c0);
-            const int deltap1 = std::clamp((dstp[-3] + avg - dstp[-2] * 2) >> 1, -c0, c0);
+            const int delta = std::clamp((((dstp[0] - dstp[-1]) << 2) + dstp[-2] - dstp[1] + 4) >> 3, -c, c);
+            const int deltaq1 = std::clamp((dstp[2] + avg - (dstp[1] << 1)) >> 1, -c0, c0);
+            const int deltap1 = std::clamp((dstp[-3] + avg - (dstp[-2] << 1)) >> 1, -c0, c0);
 
             dstp[0] = std::clamp(dstp[0] - delta, 0, d->peak);
             dstp[-1] = std::clamp(dstp[-1] + delta, 0, d->peak);
             if (ap < beta)
-                dstp[1] += deltaq1;
+                dstp[1] = std::clamp(dstp[1] + deltaq1, 0, d->peak);
             if (aq < beta)
-                dstp[-2] += deltap1;
+                dstp[-2] = std::clamp(dstp[-2] + deltap1, 0, d->peak);
         }
 
         dstp += stride;
@@ -211,15 +206,15 @@ inline void deblockVerEdge(float* VS_RESTRICT dstp, const ptrdiff_t stride, cons
             const float aq = std::abs(dstp[-3] - dstp[-1]);
 
             float c = c0;
-            if (aq < beta)
-                c += c1;
             if (ap < beta)
                 c += c1;
+            if (aq < beta)
+                c += c1;
 
-            const float avg = (dstp[0] + dstp[-1]) / 2.0f;
-            const float delta = std::clamp(((dstp[0] - dstp[-1]) * 4.0f + dstp[-2] - dstp[1]) / 8.0f, -c, c);
-            const float deltaq1 = std::clamp((dstp[2] + avg - dstp[1] * 2.0f) / 2.0f, -c0, c0);
-            const float deltap1 = std::clamp((dstp[-3] + avg - dstp[-2] * 2.0f) / 2.0f, -c0, c0);
+            const float avg = (dstp[0] + dstp[-1]) * 0.5f;
+            const float delta = std::clamp(((dstp[0] - dstp[-1]) * 4.0f + dstp[-2] - dstp[1]) * 0.125f, -c, c);
+            const float deltaq1 = std::clamp((dstp[2] + avg - dstp[1] * 2.0f) * 0.5f, -c0, c0);
+            const float deltap1 = std::clamp((dstp[-3] + avg - dstp[-2] * 2.0f) * 0.5f, -c0, c0);
 
             dstp[0] -= delta;
             dstp[-1] += delta;
@@ -234,7 +229,7 @@ inline void deblockVerEdge(float* VS_RESTRICT dstp, const ptrdiff_t stride, cons
 }
 
 template<typename pixel_t>
-static void filter(VSFrame* dst, const DeblockData* VS_RESTRICT d, const VSAPI* vsapi) noexcept {
+static void filterC(VSFrame* dst, const DeblockData* VS_RESTRICT d, const VSAPI* vsapi) noexcept {
     for (int plane = 0; plane < d->vi->format.numPlanes; plane++) {
         if (d->process[plane]) {
             const int width = vsapi->getFrameWidth(dst, plane);
@@ -245,7 +240,7 @@ static void filter(VSFrame* dst, const DeblockData* VS_RESTRICT d, const VSAPI* 
             for (int x = 4; x < width; x += 4)
                 deblockVerEdge(dstp + x, stride, d);
 
-            dstp += stride * 4;
+            dstp += 4 * stride;
 
             for (int y = 4; y < height; y += 4) {
                 deblockHorEdge(dstp, stride, d);
@@ -255,7 +250,7 @@ static void filter(VSFrame* dst, const DeblockData* VS_RESTRICT d, const VSAPI* 
                     deblockVerEdge(dstp + x, stride, d);
                 }
 
-                dstp += stride * 4;
+                dstp += 4 * stride;
             }
         }
     }
@@ -311,25 +306,30 @@ static void VS_CC deblockCreate(const VSMap* in, VSMap* out, [[maybe_unused]] vo
 
         int bOffset = vsapi->mapGetIntSaturated(in, "boffset", 0, &err);
 
+        const int num_planes = vsapi->mapNumElements(in, "planes");
+
+        for (int i = 0; i < 3; i++)
+            d->process[i] = (num_planes <= 0);
+
+        for (int i = 0; i < num_planes; i++) {
+            const int plane = vsapi->mapGetIntSaturated(in, "planes", i, nullptr);
+
+            if (plane < 0 || plane >= d->vi->format.numPlanes)
+                throw "plane index out of range"s;
+
+            if (d->process[plane])
+                throw "plane specified twice"s;
+
+            d->process[plane] = true;
+        }
+
+        const int opt = vsapi->mapGetIntSaturated(in, "opt", 0, &err);
+
         if (quant < 0 || quant > QUANT_MAX)
             throw "quant must be between 0 and " + std::to_string(QUANT_MAX) + " (inclusive)";
 
-        const int m = vsapi->mapNumElements(in, "planes");
-
-        for (int i = 0; i < 3; i++)
-            d->process[i] = (m <= 0);
-
-        for (int i = 0; i < m; i++) {
-            const int n = vsapi->mapGetIntSaturated(in, "planes", i, nullptr);
-
-            if (n < 0 || n >= d->vi->format.numPlanes)
-                throw "plane index out of range"s;
-
-            if (d->process[n])
-                throw "plane specified twice"s;
-
-            d->process[n] = true;
-        }
+        if (opt < 0 || opt > 2)
+            throw "opt must be 0, 1, or 2"s;
 
         aOffset = std::clamp(aOffset, -quant, QUANT_MAX - quant);
         bOffset = std::clamp(bOffset, -quant, QUANT_MAX - quant);
@@ -340,11 +340,23 @@ static void VS_CC deblockCreate(const VSMap* in, VSMap* out, [[maybe_unused]] vo
         d->c0 = cs[aIndex];
 
         if (d->vi->format.bytesPerSample == 1)
-            d->filter = filter<uint8_t>;
+            d->filter = filterC<uint8_t>;
         else if (d->vi->format.bytesPerSample == 2)
-            d->filter = filter<uint16_t>;
+            d->filter = filterC<uint16_t>;
         else
-            d->filter = filter<float>;
+            d->filter = filterC<float>;
+
+#ifdef DEBLOCK_X86
+        const int iset = instrset_detect();
+        if ((opt == 0 && iset >= 5) || opt == 2) {
+            if (d->vi->format.bytesPerSample == 1)
+                d->filter = filterSSE4<uint8_t>;
+            else if (d->vi->format.bytesPerSample == 2)
+                d->filter = filterSSE4<uint16_t>;
+            else
+                d->filter = filterSSE4<float>;
+        }
+#endif
 
         if (d->vi->format.sampleType == stInteger) {
             d->peak = (1 << d->vi->format.bitsPerSample) - 1;
@@ -368,7 +380,7 @@ static void VS_CC deblockCreate(const VSMap* in, VSMap* out, [[maybe_unused]] vo
             vsapi->mapSetFloat(args, "src_width", d->vi->width + padWidth, maReplace);
             vsapi->mapSetFloat(args, "src_height", d->vi->height + padHeight, maReplace);
 
-            VSMap* ret = vsapi->invoke(vsapi->getPluginByID("com.vapoursynth.resize", core), "Point", args);
+            VSMap* ret = vsapi->invoke(vsapi->getPluginByID(VSH_RESIZE_PLUGIN_ID, core), "Point", args);
             if (vsapi->mapGetError(ret)) {
                 vsapi->mapSetError(out, vsapi->mapGetError(ret));
                 vsapi->freeMap(args);
@@ -400,7 +412,7 @@ static void VS_CC deblockCreate(const VSMap* in, VSMap* out, [[maybe_unused]] vo
         vsapi->mapSetInt(args, "right", padWidth, maReplace);
         vsapi->mapSetInt(args, "bottom", padHeight, maReplace);
 
-        VSMap* ret = vsapi->invoke(vsapi->getPluginByID("com.vapoursynth.std", core), "Crop", args);
+        VSMap* ret = vsapi->invoke(vsapi->getPluginByID(VSH_STD_PLUGIN_ID, core), "Crop", args);
         if (vsapi->mapGetError(ret)) {
             vsapi->mapSetError(out, vsapi->mapGetError(ret));
             vsapi->freeMap(args);
@@ -421,14 +433,14 @@ static void VS_CC deblockCreate(const VSMap* in, VSMap* out, [[maybe_unused]] vo
 VS_EXTERNAL_API(void) VapourSynthPluginInit2(VSPlugin* plugin, const VSPLUGINAPI* vspapi) {
     vspapi->configPlugin("com.holywu.deblock",
                          "deblock",
-                         "It does a deblocking of the picture, using the deblocking filter of h264",
+                         "Reduces the blockiness of the image using the deblocking filter from h264",
                          VS_MAKE_VERSION(8, 1),
                          VAPOURSYNTH_API_VERSION,
                          0,
                          plugin);
 
     vspapi->registerFunction("Deblock",
-                             "clip:vnode;quant:int:opt;aoffset:int:opt;boffset:int:opt;planes:int[]:opt;",
+                             "clip:vnode;quant:int:opt;aoffset:int:opt;boffset:int:opt;planes:int[]:opt;opt:int:opt;",
                              "clip:vnode;",
                              deblockCreate,
                              nullptr,

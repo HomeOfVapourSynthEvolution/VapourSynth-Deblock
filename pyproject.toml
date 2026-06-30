@@ -4,7 +4,7 @@ build-backend = "mesonpy"
 
 [project]
 name = "vapoursynth-deblock"
-description = "It does a deblocking of the picture, using the deblocking filter of h264"
+description = "Reduces the blockiness of the image using the deblocking filter from h264"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "GPL-2.0-or-later"

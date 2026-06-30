@@ -1,6 +1,6 @@
 # Deblock
 
-It does a deblocking of the picture, using the deblocking filter of h264.
+Reduces the blockiness of the image using the deblocking filter from h264.
 
 Ported from AviSynth plugin http://www.avisynth.nl/users/fizick/mvtools/deblock.html.
 
@@ -8,20 +8,25 @@ Ported from AviSynth plugin http://www.avisynth.nl/users/fizick/mvtools/deblock.
 ## Parameters
 
 ```py
-deblock.Deblock(vnode clip[, int quant=25, int aoffset=0, int boffset=0, int[] planes=[0, 1, 2]])
+deblock.Deblock(vnode clip[, int quant=25, int aoffset=0, int boffset=0, int[] planes=[0, 1, 2], int opt=0])
 ```
 
-- clip: Clip to process. Any format with either integer sample type of 8-16 bit depth or float sample type of 32 bit depth is supported.
+- clip: Clip to process. Any format with either 8-16 bit depth integer sample type or 32 bit depth float sample type is supported.
 
-- quant: The higher the quant, the stronger the deblocking. It can range from 0 to 60.
+- quant: The higher the quant, the stronger the deblocking. Valid range is 0 ... 60.
 
-- aoffset: Quant modifier to the blocking detector threshold. Setting it higher means than more edges will deblocked.
+- aoffset: A quant modifier for the blockiness detection threshold. Larger values mean stronger edge deblocking.
 
-- boffset: Another quant modifier, for block detecting and for deblocking's strength. There again, the higher, the stronger.
+- boffset: Another quant modifier, used both for the blockiness detector and for the deblocking strength. Here too: the higher it is, the stronger the effect.
 
 - planes: Specifies which planes will be processed. Any unprocessed planes will be simply copied.
 
-If `quant` + `aoffset` is inferior to 16, the filter does nothing at all. The same goes for `quant` + `boffset`.
+- opt: Specifies which cpu optimizations to use.
+  - 0 = auto detect
+  - 1 = use c
+  - 2 = use sse4.1
+
+If `quant` + `aoffset` is less to 16, no filtering is performed at all. The same applies to `quant` + `boffset`.
 
 
 ## Installation
